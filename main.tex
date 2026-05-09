@@ -468,7 +468,8 @@ Y_{it}=\alpha_i+\tau_t+\theta(D_i\times Post_t)+\bm{w}_{it}^\top\bm{\gamma}+u_{i
 
 \subsection{Regression Discontinuity Form}
 \[
-Y_i=\alpha+\tau\mathbf{1}\{r_i\ge c\}+f_-(r_i-c)\mathbf{1}\{r_i<c\}+f_+(r_i-c)\mathbf{1}\{r_i\ge c\}+u_i.
+Y_i=\alpha+\tau\mathbf{1}\{r_i\ge c\}+f_-(r_i-c)\mathbf{1}\{r_i<c\}+f_+(r_i-c)\mathbf{1}\{r_i\ge c\}+u_i,
+\qquad \lim_{r\downarrow c}\mathbb{E}[Y_i(0)\mid r_i=r]=\lim_{r\uparrow c}\mathbb{E}[Y_i(0)\mid r_i=r].
 \]
 
 \subsection{Moment Conditions}
@@ -683,7 +684,7 @@ J=n\,\bar{\bm{g}}_n(\hat{\bm{\theta}})^\top \hat W\,\bar{\bm{g}}_n(\hat{\bm{\the
 \[
 K^+=K+\mathcal{A}(K,\bm{x};\bm{\theta})
 \quad\text{with}\quad
-\mathcal{A}=a_0+\bm{a}^\top\bm{x}+\bm{x}^\top\bm{H}\bm{x}+g(\bm{x}).
+\mathcal{A}=a_0+\bm{a}^\top\bm{x}+\tfrac12\bm{x}^\top\bm{H}\bm{x}+g(\bm{x}).
 \]
 
 \subsection{General Dynamic Formula}
