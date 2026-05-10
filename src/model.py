@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Sequence
+from typing import Literal, Sequence
 
 import numpy as np
-from sklearn.linear_model import LinearRegression
+from sklearn.linear_model import Lasso, LinearRegression, Ridge
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
 
 
 @dataclass
@@ -12,21 +14,47 @@ class CapitalModelResult:
     coef: np.ndarray
     intercept: float
     r2: float
+    model_type: str
 
 
 class CapitalAccumulationModel:
-    """Finite-dimensional approximation of
-    K_{t+1} = K_t + alpha + beta^T x_t + 1/2 x_t^T H x_t + eps_t.
+    """Finite-dimensional approximation with optional regularization.
+
+    ΔK_t = α + β^T x_t + 1/2 x_t^T H x_t + ε_t
     """
 
-    def __init__(self, feature_names: Sequence[str]):
+    def __init__(
+        self,
+        feature_names: Sequence[str],
+        model_type: Literal["ols", "ridge", "lasso"] = "ridge",
+        alpha: float = 1.0,
+    ):
         self.feature_names = list(feature_names)
-        self.reg = LinearRegression()
+        self.model_type = model_type
+        self.alpha = alpha
+
+        if model_type == "ols":
+            reg = LinearRegression()
+        elif model_type == "ridge":
+            reg = Ridge(alpha=alpha)
+        elif model_type == "lasso":
+            reg = Lasso(alpha=alpha, max_iter=10000)
+        else:
+            raise ValueError("model_type must be one of: ols, ridge, lasso")
+
+        self.reg = Pipeline([
+            ("scaler", StandardScaler()),
+            ("reg", reg),
+        ])
         self._fitted = False
 
     def _design_matrix(self, x: np.ndarray) -> np.ndarray:
         n, d = x.shape
         cols = [x]
+        lag_x = np.roll(x, shift=1, axis=0)
+        lag_x[0, :] = x[0, :]
+        cols.append(lag_x)
+
         quad_terms = []
         for i in range(d):
             for j in range(i, d):
@@ -40,10 +68,18 @@ class CapitalAccumulationModel:
         X = self._design_matrix(x_t)
         self.reg.fit(X, y)
         self._fitted = True
+
+        pred = self.reg.predict(X)
+        ss_res = np.sum((y - pred) ** 2)
+        ss_tot = np.sum((y - np.mean(y)) ** 2)
+        r2 = 1.0 - ss_res / ss_tot if ss_tot > 0 else 0.0
+
+        reg = self.reg.named_steps["reg"]
         return CapitalModelResult(
-            coef=self.reg.coef_.copy(),
-            intercept=float(self.reg.intercept_),
-            r2=float(self.reg.score(X, y)),
+            coef=np.asarray(reg.coef_).copy(),
+            intercept=float(reg.intercept_),
+            r2=float(r2),
+            model_type=self.model_type,
         )
 
     def predict_next(self, k_t: np.ndarray, x_t: np.ndarray) -> np.ndarray:
@@ -54,7 +90,6 @@ class CapitalAccumulationModel:
         return k_t + delta
 
     def marginal_effect(self, x_point: np.ndarray, eps: float = 1e-5) -> np.ndarray:
-        """Numerical gradient of ΔK wrt x at a point."""
         if x_point.ndim != 1:
             raise ValueError("x_point must be 1D")
         base = self.reg.predict(self._design_matrix(x_point.reshape(1, -1)))[0]
